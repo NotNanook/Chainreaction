@@ -26,5 +26,5 @@ The gameloop can be changed and altered, but there is a pre-made one
 play(game)
 ```
 ## To do
-* Animations
-* Easier switch to more than 2 players
+[] Animations
+[] Easier switch to more than 2 players
