@@ -27,21 +27,24 @@ class Spot():
     """
     def __init__(self):
         self.color = Color.border
-        self.neighbors = []
         self.numAtoms = 0
+        self.neighbours = []
+        self.neighbourCount = 0
         self.neighbourOffsets = [(-1, 0), (1, 0), (0, -1), (0,1)]
 
-    def addNeighbors(self, i, j, game):
+    def addNeighbours(self, i, j, game):
 
         # go over every offset and check if its a valid neighbour
         for offset in self.neighbourOffsets:
             try:
                 # checking if coords are valid
                 if (i + offset[0] in range(0, game.rows) and j + offset[1] in range(0, game.cols)) and game.grid[i + offset[0]][j + offset[1]] != game.INVALID:
-                    self.neighbors.append(game.grid[i + offset[0]][j + offset[1]])
+                    self.neighbours.append(game.grid[i + offset[0]][j + offset[1]])
 
             except IndexError:
                 continue
+
+        self.neighbourCount = len(self.neighbours)
 
 class Game():
     """
@@ -52,6 +55,7 @@ class Game():
         self.INVALID = -1
 
         self.cellSize = 60
+        self.cellthickness = 6
         self.rows = 0                       # 0 as default value until further initialized
         self.cols = 0                       # 0 as default value until further initialized
         self.d = self.cellSize // 2 - 2
@@ -103,8 +107,8 @@ class Game():
         self.rows = rows
         self.cols = cols
 
-        self.WIDTH = self.cols * self.cellSize  + 1
-        self.HEIGHT = self.rows * self.cellSize + 1
+        self.WIDTH = self.cols * self.cellSize  + 1 - (self.cols-1)*self.cellthickness # (self.cols-1)*self.cellthickness is to compensate for border thickness
+        self.HEIGHT = self.rows * self.cellSize + 1 - (self.rows-1)*self.cellthickness # (self.rows-1)*self.cellthickness is to compensate for border thickness
 
         # check which game board type it is
         if board == "normal":
@@ -147,15 +151,14 @@ class Game():
         for i in range(self.rows):
             for j in range(self.cols):
                 if self.grid[i][j] != self.INVALID:
-                    self.grid[i][j].addNeighbors(i, j, self)
-
+                    self.grid[i][j].addNeighbours(i, j, self)
 
     def addAtom(self, y, x, color, display=None, ai=False):
         # Add atom to clicked cell
 
         self.grid[y][x].numAtoms += 1
         self.grid[y][x].color = color
-        if self.grid[y][x].numAtoms >= len(self.grid[y][x].neighbors):
+        if self.grid[y][x].numAtoms >= len(self.grid[y][x].neighbours):
             self.overFlow(self.grid[y][x], color, display, 1, ai)
 
     def overFlow(self, cell, color, display, recursion, ai=False):
@@ -165,12 +168,12 @@ class Game():
             self.showPresentGrid(display)
 
         cell.numAtoms = 0
-        for m in range(len(cell.neighbors)):
-            cell.neighbors[m].numAtoms += 1
-            cell.neighbors[m].color = color
-            if cell.neighbors[m].numAtoms >= len(cell.neighbors[m].neighbors) and recursion < 50:
+        for m in range(len(cell.neighbours)):
+            cell.neighbours[m].numAtoms += 1
+            cell.neighbours[m].color = color
+            if cell.neighbours[m].numAtoms >= len(cell.neighbours[m].neighbours) and recursion < 50:
                 recursion += 1
-                self.overFlow(cell.neighbors[m], color, display, recursion, ai)
+                self.overFlow(cell.neighbours[m], color, display, recursion, ai)
 
     def drawGrid(self, display):
         # Display grid
@@ -181,36 +184,46 @@ class Game():
         for row in range(self.rows):
             for col in range(self.cols):
                 if self.grid[row][col] != self.INVALID:
-                    pygame.draw.rect(display, self.color[self.player], (x, y, self.cellSize, self.cellSize), 2)
+                    pygame.draw.rect(display, self.color[self.player], (x, y, self.cellSize, self.cellSize), self.cellthickness)
 
-                x += self.cellSize
+                x += self.cellSize - self.cellthickness
 
             x = 0
-            y += self.cellSize
+            y += self.cellSize - self.cellthickness
 
     def showPresentGrid(self, display, vibrate = 1):
         # Display all atoms. Can be treated as a black box
 
-        r = -self.cellSize
-        c = -self.cellSize
+        r = -self.cellSize + self.cellthickness
+        c = -self.cellSize + self.cellthickness
         padding = 2
         for i in range(self.rows):
-            r += self.cellSize
-            c = -self.cellSize
+            r += self.cellSize - self.cellthickness
+            c = -self.cellSize + self.cellthickness
 
             for j in range(self.cols):
-                c += self.cellSize
+                realVibrate = 0
+                c += self.cellSize - self.cellthickness
                 if self.grid[i][j] != self.INVALID and self.grid[i][j].numAtoms == 0:
                     self.grid[i][j].color = Color.border
 
                 elif self.grid[i][j] != self.INVALID and self.grid[i][j].numAtoms == 1:
-                    pygame.draw.ellipse(display, self.grid[i][j].color, (c + self.cellSize/2 - self.d/2, r + self.cellSize/2 - self.d/2 + vibrate, self.d, self.d))
+                    if self.grid[i][j].neighbourCount == 2:
+                        realVibrate = vibrate
+
+                    pygame.draw.ellipse(display, self.grid[i][j].color, (c + self.cellSize/2 - self.d/2, r + self.cellSize/2 - self.d/2 + realVibrate, self.d, self.d))
 
                 elif self.grid[i][j] != self.INVALID and self.grid[i][j].numAtoms == 2:
-                    pygame.draw.ellipse(display, self.grid[i][j].color, (c + 5, r + self.cellSize/2 - self.d/2 - vibrate, self.d, self.d))
-                    pygame.draw.ellipse(display, self.grid[i][j].color, (c + + self.d/2 + self.cellSize/2 - self.d/2 + vibrate, r + self.d/2, self.d, self.d))
+                    if self.grid[i][j].neighbourCount == 3:
+                        realVibrate = vibrate
+
+                    pygame.draw.ellipse(display, self.grid[i][j].color, (c + 5, r + self.cellSize/2 - self.d/2 - realVibrate, self.d, self.d))
+                    pygame.draw.ellipse(display, self.grid[i][j].color, (c + + self.d/2 + self.cellSize/2 - self.d/2 + realVibrate, r + self.d/2, self.d, self.d))
 
                 elif self.grid[i][j] != self.INVALID and self.grid[i][j].numAtoms == 3:
+                    if self.grid[i][j].neighbourCount == 4:
+                        realVibrate = vibrate
+
                     angle = 90
                     x = r + (self.d/2)*cos(radians(angle)) + self.cellSize/2 - self.d/2
                     y = c + (self.d/2)*sin(radians(angle)) + self.cellSize/2 - self.d/2
@@ -285,8 +298,8 @@ def play(game):
             elif event.type == pygame.MOUSEBUTTONDOWN and not game.end and game.player == 0:
                 time1 = time.time()
                 x, y = pygame.mouse.get_pos()
-                i = y//game.cellSize
-                j = x//game.cellSize
+                i = y//(game.cellSize - game.cellthickness)
+                j = x//(game.cellSize - game.cellthickness)
                 if game.grid[i][j] != game.INVALID and (game.grid[i][j].color == game.color[game.player] or game.grid[i][j].color == Color.border):
                     game.addAtom(i, j, game.color[game.player], display)
                     game.turns += 1
@@ -296,8 +309,8 @@ def play(game):
             elif event.type == pygame.MOUSEBUTTONDOWN and not game.end and game.player == 1:
                 time1 = time.time()
                 x, y = pygame.mouse.get_pos()
-                i = y//game.cellSize
-                j = x//game.cellSize
+                i = y//(game.cellSize - game.cellthickness)
+                j = x//(game.cellSize - game.cellthickness)
                 if game.grid[i][j] != game.INVALID and (game.grid[i][j].color == game.color[game.player] or game.grid[i][j].color == Color.border):
                     game.addAtom(i, j, game.color[game.player], display)
                     game.turns += 1
@@ -321,5 +334,5 @@ def play(game):
 
 if __name__ ==  "__main__":
     game = Game()
-    game.initializeGrid(9, 8, board="circle")
+    game.initializeGrid(9, 8, board="tree")
     play(game)
