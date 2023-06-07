@@ -9,14 +9,16 @@ from math import *
 from copy import deepcopy
 from pygame import gfxdraw
 
+
+
 class Color():
     """
     Class for all used colors
     """
-    background = (22, 22, 22)
+    background = (250, 232, 224)
     border = (0, 0, 0)
-    red = (200, 75, 49)
-    green = (52, 103, 81)
+    red = (239, 124, 142)
+    green = (182, 226, 211)
 
 class Spot():
     """
@@ -28,9 +30,6 @@ class Spot():
         self.neighbours = []
         self.neighbourCount = 0
         self.neighbourOffsets = [(-1, 0), (1, 0), (0, -1), (0,1)]
-
-    def __str__(self):
-        return "Color:" + str(self.color) + " Atoms: " + str(self.numAtoms)
 
     def addNeighbours(self, i, j, game):
 
@@ -52,15 +51,13 @@ class Game():
     """
     def __init__(self):
 
-        self.display = None
-        
         self.INVALID = -1
 
         self.cellSize = 80
         self.cellthickness = 6
         self.rows = 0                       # 0 as default value until further initialized
         self.cols = 0                       # 0 as default value until further initialized
-        self.r = self.cellSize // 2 - 20
+        self.r = self.cellSize // 2 - 17
 
         self.WIDTH = 0                      # 0 as default value until further initialized
         self.HEIGHT = 0                     # 0 as default value until further initialized
@@ -81,8 +78,7 @@ class Game():
 
         self.clock = pygame.time.Clock()
 
-        self.overflowList = [] 
-        self.lastOverflowTime = time.time_ns()
+        self.drawDelay = 0.5
 
     def getState(self):
         # Get tuple of the state of the board. Used for AI mostly
@@ -154,46 +150,41 @@ class Game():
                 if self.grid[i][j] != self.INVALID:
                     self.grid[i][j].addNeighbours(i, j, self)
 
-    def addAtom(self, y, x, color):
+    def addAtom(self, y, x, color, display=None, ai=False):
         self.grid[y][x].numAtoms += 1
         self.grid[y][x].color = color
         if self.grid[y][x].numAtoms >= len(self.grid[y][x].neighbours):
-            self.overFlow(self.grid[y][x], color)
+            self.overFlow(self.grid[y][x], color, display, 1, ai)
 
-    def overFlow(self, cell, color):
-        localOverflowList = []
+    def overFlow(self, cell, color, display, recursion, ai=False):
+        # Recursive
+
+        if ai == False:
+            self.showPresentGrid(display)
+
         cell.numAtoms = 0
         for neighbour in cell.neighbours:
             neighbour.numAtoms += 1
             neighbour.color = color
-            if neighbour.numAtoms >= len(neighbour.neighbours):
-                localOverflowList.append(neighbour)
+            if neighbour.numAtoms >= len(neighbour.neighbours) and recursion < 50:
+                recursion += 1
+                self.overFlow(neighbour, color, display, recursion, ai)
 
-        if localOverflowList != []:
-            self.overflowList.append(localOverflowList)
-
-    def handleOverflowList(self):
-        if len(self.overflowList) >= 1:
-            for cell in self.overflowList[0]:          # Order of simulation is important (buggy)
-                self.overFlow(cell, cell.color)
-            self.overflowList.pop(0)
-            self.lastOverflowTime = time.time_ns()
-
-    def drawGrid(self):
+    def drawGrid(self, display):
         x = 0
         y = 0
 
         for row in range(self.rows):
             for col in range(self.cols):
                 if self.grid[row][col] != self.INVALID:
-                    pygame.draw.rect(self.display, self.color[self.player], (x, y, self.cellSize, self.cellSize), self.cellthickness)
+                    pygame.draw.rect(display, self.color[self.player], (x, y, self.cellSize, self.cellSize), self.cellthickness)
 
                 x += self.cellSize - self.cellthickness
 
             x = 0
             y += self.cellSize - self.cellthickness
 
-    def showPresentGrid(self, vibrate = 1):
+    def showPresentGrid(self, display, vibrate = 1):
         yPos = -self.cellSize + self.cellthickness
         xPos = -self.cellSize + self.cellthickness
 
@@ -211,14 +202,14 @@ class Game():
                     if self.grid[i][j].neighbourCount == 2:
                         realVibrate = vibrate
 
-                    drawCircle(self.display, self.grid[i][j].color, xPos + self.cellSize/2, yPos + self.cellSize/2 + realVibrate, self.r)
+                    drawCircle(display, self.grid[i][j].color, xPos + self.cellSize/2, yPos + self.cellSize/2 + realVibrate, self.r)
 
                 elif self.grid[i][j] != self.INVALID and self.grid[i][j].numAtoms == 2:
                     if self.grid[i][j].neighbourCount == 3:
                         realVibrate = vibrate
 
-                    drawCircle(self.display, self.grid[i][j].color, xPos + self.cellSize/2 + self.r/1.5, yPos - realVibrate + self.cellSize/2, self.r)
-                    drawCircle(self.display, self.grid[i][j].color, xPos + self.cellSize/2 - self.r/1.5 + realVibrate, yPos - realVibrate + self.cellSize/2, self.r)
+                    drawCircle(display, self.grid[i][j].color, xPos + self.cellSize/2 + self.r/1.5, yPos - realVibrate + self.cellSize/2, self.r)
+                    drawCircle(display, self.grid[i][j].color, xPos + self.cellSize/2 - self.r/1.5 + realVibrate, yPos - realVibrate + self.cellSize/2, self.r)
 
                 elif self.grid[i][j] != self.INVALID and self.grid[i][j].numAtoms == 3:
                     if self.grid[i][j].neighbourCount == 4:
@@ -226,15 +217,15 @@ class Game():
 
                     x = xPos + self.cellSize/2 + self.r/1.5
                     y = yPos + self.cellSize/2
-                    drawCircle(self.display, self.grid[i][j].color, x, y - vibrate, self.r)
+                    drawCircle(display, self.grid[i][j].color, x, y - vibrate, self.r)
 
                     x = xPos + self.cellSize/2 - self.r/1.5
                     y = yPos + self.cellSize/2 + self.r/1.5
-                    drawCircle(self.display, self.grid[i][j].color, x, y + vibrate, self.r)
+                    drawCircle(display, self.grid[i][j].color, x, y + vibrate, self.r)
 
                     x = xPos + self.cellSize/2 - self.r/1.5
                     y = yPos + self.cellSize/2 - self.r/1.5
-                    drawCircle(self.display, self.grid[i][j].color, x + vibrate, y - vibrate, self.r)
+                    drawCircle(display, self.grid[i][j].color, x + vibrate, y - vibrate, self.r)
 
     def justEnded(self):
         colorsFound = set()
@@ -254,6 +245,23 @@ class Game():
         self.winner = None
         self.turns = 0
 
+    @classmethod
+    def available_actions(cls, state, color):
+        # Get list of all available action. Used for AI mostly
+
+        actions = []
+
+        for row in range(len(state)):
+            for col in range(len(state[row])):
+                if state[row][col] != -1 and (state[row][col][1] == Color.border or state[row][col][1] == color):
+                    actions.append((row, col))
+
+        return actions
+
+    @classmethod
+    def other_player(cls, player):
+        return 0 if player == 1 else 1
+
 def drawCircle(surface, color, x, y, radius):
     # Draw antialiased circle because i dont like sprites
     x, y = int(x), int(y)
@@ -261,7 +269,7 @@ def drawCircle(surface, color, x, y, radius):
     gfxdraw.filled_circle(surface, x, y, radius, color)
 
 def play(game):
-    game.display = pygame.display.set_mode((game.WIDTH, game.HEIGHT))
+    display = pygame.display.set_mode((game.WIDTH, game.HEIGHT))
     pygame.display.set_caption("Chainreaction")
 
     while True:
@@ -276,14 +284,14 @@ def play(game):
                     time1 = time.time()
                     game.reset(game)
 
-            if not game.end and len(game.overflowList) == 0:
+            if not game.end:
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     time1 = time.time()
                     x, y = pygame.mouse.get_pos()
                     i = y//(game.cellSize - game.cellthickness)
                     j = x//(game.cellSize - game.cellthickness)
                     if game.grid[i][j] != game.INVALID and (game.grid[i][j].color == game.color[game.player] or game.grid[i][j].color == Color.border):
-                        game.addAtom(i, j, game.color[game.player])
+                        game.addAtom(i, j, game.color[game.player], display)
                         game.turns += 1
 
                         game.switch_player()
@@ -295,14 +303,11 @@ def play(game):
 
         game.vibrate *= -1
 
-        if time.time_ns() - game.lastOverflowTime >= 90000000:
-            game.handleOverflowList()
-
-        game.display.fill(Color.background)
-        game.drawGrid()
-        game.showPresentGrid(game.vibrate)
-
+        display.fill(Color.background)
+        game.drawGrid(display)
+        game.showPresentGrid(display, game.vibrate)
         pygame.display.update()
+
         game.clock.tick(60)
 
 if __name__ ==  "__main__":
